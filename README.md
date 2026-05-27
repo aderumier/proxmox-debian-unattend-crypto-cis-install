@@ -10,8 +10,11 @@ debian.iso + proxmox-ve.iso  ──►  inject_repo.sh  ──►  debian_proxmo
 proxmox-preseed.template  ──►  generate-preseed.sh  ──►  preseed.cfg
                                                               │
                                     USB key (Ventoy)  ◄──────┘
-                                    └── debian_proxmox.iso
-                                    └── ventoy/ventoy.json  (preseed path)
+                                    ├── debian_proxmox.iso
+                                    ├── script/
+                                    │   └── preseed.cfg
+                                    └── ventoy/
+                                        └── ventoy.json
 ```
 
 ---
