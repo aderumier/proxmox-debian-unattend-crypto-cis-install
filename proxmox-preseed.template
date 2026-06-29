@@ -33,7 +33,7 @@ d-i hw-detect/load_firmware boolean true
 #d-i mirror/country string manual
 #d-i mirror/http/hostname string http.us.debian.org
 #d-i mirror/http/directory string /debian
-#d-i mirror/http/proxy proxy.odsio.net
+#d-i mirror/http/proxy proxy.odiso.net
 
 # Suite to install.
 #d-i mirror/suite string testing
@@ -142,7 +142,7 @@ d-i partman-auto/expert_recipe string \
                     lv_name{ swap } \
                     method{ swap } format{ } \
               . \
-              1000 1000 1000 xfs \
+              3000 3000 3000 xfs \
                     $lvmok{ } \
                     lv_name{ tmp } \
                     method{ format } format{ } \
@@ -152,7 +152,7 @@ d-i partman-auto/expert_recipe string \
                     options/nodev{ nodev } \
                     options/noexec{ noexec } \
               . \
-              1000 1000 1000 xfs \
+              10000 10000 10000 xfs \
                     $lvmok{ } \
                     lv_name{ var } \
                     method{ format } format{ } \
@@ -161,7 +161,7 @@ d-i partman-auto/expert_recipe string \
                     options/nosuid{ nosuid } \
                     options/nodev{ nodev } \
               . \
-              1000 1000 1000 xfs \
+              5000 5000 5000 xfs \
                     $lvmok{ } \
                     lv_name{ log } \
                     method{ format } format{ } \
@@ -171,7 +171,7 @@ d-i partman-auto/expert_recipe string \
                     options/nodev{ nodev } \
                     options/noexec{ noexec } \
               . \
-              1000 1000 1000 xfs \
+              5000 5000 5000 xfs \
                     $lvmok{ } \
                     lv_name{ audit } \
                     method{ format } format{ } \
@@ -181,7 +181,7 @@ d-i partman-auto/expert_recipe string \
                     options/nodev{ nodev } \
                     options/noexec{ noexec } \
               . \
-              1000 1000 1000 xfs \
+              3000 3000 3000 xfs \
                     $lvmok{ } \
                     lv_name{ vartmp } \
                     method{ format } format{ } \

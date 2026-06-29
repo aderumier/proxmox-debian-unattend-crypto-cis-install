@@ -4,6 +4,21 @@ Tooling to build a self-contained ISO that installs Proxmox VE fully unattended 
 
 ## Overview
 
+There are two ways to build and deploy:
+
+**A. One-step, self-booting ISO (no Ventoy) — `build-iso.sh`**
+
+```
+proxmox-preseed.template  ──►  generate-preseed.sh  ──►  preseed.cfg
+                                                              │
+debian.iso + proxmox-ve.iso + preseed.cfg  ──►  build-iso.sh  ──►  autoinstall.iso
+                                                              │
+                              burn / dd to USB ◄──────────────┘
+                              (boots straight into the unattended install)
+```
+
+**B. Packages-only ISO + Ventoy preseed injection — `inject_repo.sh`**
+
 ```
 debian.iso + proxmox-ve.iso  ──►  inject_repo.sh  ──►  debian_proxmox.iso
                                                               │
@@ -16,6 +31,54 @@ proxmox-preseed.template  ──►  generate-preseed.sh  ──►  preseed.cfg
                                     └── ventoy/
                                         └── ventoy.json
 ```
+
+---
+
+## 0. One-step bootable ISO — `build-iso.sh`
+
+Builds a single ISO that boots straight into the unattended install — no Ventoy, no network. It does everything `inject_repo.sh` does (injects the Proxmox `.deb` packages as the local `pve-local/pve` suite) **and** bakes the preseed in:
+
+- Appends `preseed.cfg` to the installer's initrd (`install.amd/initrd.gz`, and the gtk initrd if present). Debian auto-loads a preseed found at the root of its initrd — the most reliable method, read before any question is asked and needing no cdrom mount.
+- Replaces the BIOS (isolinux) and UEFI (grub) boot menus with a single entry that boots with `auto=true priority=critical`, so the install starts on its own after a short timeout.
+
+### Requirements
+
+```bash
+sudo apt install xorriso dpkg-dev cpio
+```
+
+### Usage
+
+```bash
+./build-iso.sh <debian.iso> <proxmox-ve.iso> <preseed.cfg> <output.iso>
+```
+
+**Example:**
+
+```bash
+# 1. generate the preseed (see section 2)
+./generate-preseed.sh \
+  --ip 192.168.1.10/24 --gateway 192.168.1.1 --dns 192.168.1.1 \
+  --hostname proxmox1 --domain example.com
+# → proxmox-preseed-proxmox1.txt
+
+# 2. build the self-booting ISO
+./build-iso.sh \
+  debian-13.5.0-amd64-DVD-1.iso \
+  proxmox-ve_9.2-1.iso \
+  proxmox-preseed-proxmox1.txt \
+  debian_proxmox_autoinstall.iso
+```
+
+Write it to a USB key and boot it (BIOS or UEFI):
+
+```bash
+sudo dd if=debian_proxmox_autoinstall.iso of=/dev/sdX bs=4M status=progress oflag=sync
+```
+
+> The install is fully unattended and **wipes the target disk** (`/dev/sda` by default — see the preseed). Boot it only on the machine you intend to install.
+
+If you prefer Ventoy (one ISO, many per-host preseeds), use `inject_repo.sh` (section 1) + Ventoy (section 3) instead.
 
 ---
 
