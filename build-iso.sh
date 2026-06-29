@@ -235,6 +235,10 @@ EOF
 
 echo "==> Repacking ISO..."
 
+# xorriso loads an existing -outdev as media and refuses to overwrite it when
+# it differs from -indev; start from a clean output path.
+rm -f "$OUTPUT_ISO"
+
 MAP_ARGS=(-map "$PVE_LOCAL_DIR" "/dists/$PVE_LOCAL_SUITE")
 # Map every modified file under $ISO_FILES back to its ISO path.
 while IFS= read -r f; do
@@ -248,6 +252,31 @@ xorriso \
     "${MAP_ARGS[@]}" \
     -boot_image any replay \
     2>&1 | grep -v "^xorriso : UPDATE" || true
+
+##############################################################################
+# 5. Verify the output ISO actually contains the suite and the preseed
+##############################################################################
+
+echo "==> Verifying output ISO..."
+PKG_PATH="/dists/$PVE_LOCAL_SUITE/$PVE_COMP/binary-amd64/Packages"
+if ! xorriso -indev "$OUTPUT_ISO" -find "$PKG_PATH" 2>/dev/null | grep -q "$PKG_PATH"; then
+    echo "Error: $PKG_PATH missing from $OUTPUT_ISO" >&2
+    exit 1
+fi
+debs=$(xorriso -indev "$OUTPUT_ISO" \
+    -find "/dists/$PVE_LOCAL_SUITE/$PVE_COMP/binary-amd64" -name '*.deb' 2>/dev/null | wc -l)
+echo "    OK: pve-local suite present ($debs .deb files)"
+
+# Confirm preseed.cfg made it into the installer initrd.
+TMP_INITRD="$WORK_DIR/verify-initrd.gz"
+if xorriso -osirrox on -indev "$OUTPUT_ISO" \
+        -extract "/$INSTALL_DIR/initrd.gz" "$TMP_INITRD" 2>/dev/null \
+   && zcat "$TMP_INITRD" | cpio -t 2>/dev/null | grep -qx "preseed.cfg"; then
+    echo "    OK: preseed.cfg embedded in /$INSTALL_DIR/initrd.gz"
+else
+    echo "Error: preseed.cfg not found inside the installer initrd" >&2
+    exit 1
+fi
 
 echo
 echo "==> Done: $OUTPUT_ISO"

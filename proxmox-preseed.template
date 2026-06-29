@@ -269,7 +269,10 @@ d-i systemd-boot-installer/skip boolean true
 d-i nobootloader/confirmation_common boolean true
 
 ### Finishing up the installation
+# Skip the final "Installation complete" prompt and reboot automatically.
 d-i finish-install/reboot_in_progress note
+d-i debian-installer/exit/reboot boolean true
+d-i debian-installer/exit/poweroff boolean false
 
 #### Advanced options
 #d-i preseed/late_command \
@@ -287,6 +290,7 @@ d-i preseed/late_command string \
     in-target systemctl enable tmp.mount ; \
     echo "deb [trusted=yes] file:///media/cdrom trixie main contrib non-free non-free-firmware" > /target/etc/apt/sources.list && \
     echo "deb [trusted=yes] file:///media/cdrom pve-local pve" > /target/etc/apt/sources.list.d/pve-cdrom.list && \
+    mkdir -p /target/media/cdrom && { [ -e /target/media/cdrom/dists/pve-local/pve/binary-amd64/Packages ] || mount --bind /cdrom /target/media/cdrom ; } && \
     in-target apt-get update 2>&1 && \
     in-target env DEBIAN_FRONTEND=noninteractive apt-get install -y \
         proxmox-default-kernel proxmox-kernel-helper shim-signed shim-helpers-amd64-signed \
@@ -296,11 +300,12 @@ d-i preseed/late_command string \
     EFI_PART=$(blkid -t TYPE=vfat -o device | head -1) && \
     in-target umount "$EFI_PART" && \
     in-target proxmox-boot-tool init "$EFI_PART" grub && \
-    i=1; for iface in /sys/class/net/*; do n=$(basename $iface); [ "$n" = "lo" ] && continue; [ -e "$iface/device" ] || continue; mac=$(cat "$iface/address" 2>/dev/null); [ -z "$mac" ] && continue; printf '[Match]\nMACAddress=%s\n\n[Link]\nName=nic%d\n' "$mac" "$i" > /target/etc/systemd/network/10-nic${i}.link; i=$((i+1)); done && \
+    i=1; for iface in /sys/class/net/*; do n=$(basename $iface); [ "$n" = "lo" ] && continue; [ -e "$iface/device" ] || continue; mac=$(cat "$iface/address" 2>/dev/null); [ -z "$mac" ] && continue; { echo "[Match]"; echo "MACAddress=$mac"; echo ""; echo "[Link]"; echo "Name=nic$i"; } > /target/etc/systemd/network/10-nic${i}.link; i=$((i+1)); done && \
     in-target proxmox-boot-tool refresh && \
     rm -f /target/etc/apt/sources.list.d/pve-cdrom.list ; \
+    umount /target/media/cdrom 2>/dev/null ; \
     chattr -i /target/etc/network/interfaces 2>/dev/null ; \
     rm -f /target/etc/network/interfaces /target/etc/network/interfaces.new ; \
-    printf 'auto lo\niface lo inet loopback\n\nauto bond0\niface bond0 inet manual\n    bond-slaves nic1 nic2\n    bond-mode 802.3ad\n    bond-miimon 100\n    bond-lacp-rate fast\n    bond-xmit-hash-policy layer3+4\n\nauto vmbr0\niface vmbr0 inet static\n    address __IP__\n    gateway __GATEWAY__\n    bridge-ports bond0\n    bridge-stp off\n    bridge-fd 0\n\n\nsource /etc/network/interfaces.d/*\n' > /target/etc/network/interfaces ; \
+    { echo "auto lo"; echo "iface lo inet loopback"; echo ""; echo "auto bond0"; echo "iface bond0 inet manual"; echo "    bond-slaves nic1 nic2"; echo "    bond-mode 802.3ad"; echo "    bond-miimon 100"; echo "    bond-lacp-rate fast"; echo "    bond-xmit-hash-policy layer3+4"; echo ""; echo "auto vmbr0"; echo "iface vmbr0 inet static"; echo "    address __IP__"; echo "    gateway __GATEWAY__"; echo "    bridge-ports bond0"; echo "    bridge-stp off"; echo "    bridge-fd 0"; echo ""; echo ""; echo "source /etc/network/interfaces.d/*"; } > /target/etc/network/interfaces ; \
     sed -i 's/^127\.[0-9]*\.[0-9]*\.[0-9].*__HOSTNAME__.*/__IP_ADDR__ __HOSTNAME__/' /target/etc/hosts ; \
-    printf 'nameserver __DNS__\n' > /target/etc/resolv.conf ;
+    echo "nameserver __DNS__" > /target/etc/resolv.conf ;
