@@ -4,17 +4,20 @@ set -e
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 TEMPLATE="${SCRIPT_DIR}/proxmox-preseed.template"
 
-IP="" GATEWAY="" DNS="" HOSTNAME="" DOMAIN="" OUTPUT=""
+IP="" GATEWAY="" DNS="" HOSTNAME="" DOMAIN="" OUTPUT="" SSH_KEY_INPUT=""
 
 usage() {
     cat <<EOF
-Usage: $0 --ip <ip/prefix> --gateway <gw> --dns <dns> --hostname <name> [--domain <domain>] [--output <file>]
+Usage: $0 --ip <ip/prefix> --gateway <gw> --dns <dns> --hostname <name> [--domain <domain>] [--ssh-key <file|key>] [--output <file>]
 
   --ip        IP address with prefix length (e.g. 192.168.1.10/24)
   --gateway   Default gateway IP
   --dns       DNS nameserver IP
   --hostname  Short hostname (e.g. proxmox2)
   --domain    Domain name (optional, default: cyllene.com)
+  --ssh-key   Public key for the ansible user's authorized_keys: either a
+              path to a .pub file or the key string itself (optional; the
+              ansible user gets passwordless sudo regardless)
   --output    Output file (default: proxmox-preseed-<hostname>.txt)
 EOF
     exit 1
@@ -22,12 +25,13 @@ EOF
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
-        --ip)       IP="$2";       shift 2 ;;
-        --gateway)  GATEWAY="$2";  shift 2 ;;
-        --dns)      DNS="$2";      shift 2 ;;
-        --hostname) HOSTNAME="$2"; shift 2 ;;
-        --domain)   DOMAIN="$2";   shift 2 ;;
-        --output)   OUTPUT="$2";   shift 2 ;;
+        --ip)       IP="$2";             shift 2 ;;
+        --gateway)  GATEWAY="$2";        shift 2 ;;
+        --dns)      DNS="$2";            shift 2 ;;
+        --hostname) HOSTNAME="$2";       shift 2 ;;
+        --domain)   DOMAIN="$2";         shift 2 ;;
+        --ssh-key)  SSH_KEY_INPUT="$2";  shift 2 ;;
+        --output)   OUTPUT="$2";         shift 2 ;;
         *) echo "Unknown option: $1"; usage ;;
     esac
 done
@@ -41,6 +45,19 @@ done
 IP_ADDR="${IP%%/*}"
 [[ -z "$OUTPUT" ]] && OUTPUT="${SCRIPT_DIR}/proxmox-preseed-${HOSTNAME}.txt"
 
+# Resolve the ssh key: a readable file -> its first line, otherwise the literal
+# string. Empty if not provided (authorized_keys is then left empty).
+SSH_KEY=""
+if [[ -n "$SSH_KEY_INPUT" ]]; then
+    if [[ -f "$SSH_KEY_INPUT" ]]; then
+        SSH_KEY="$(head -n1 "$SSH_KEY_INPUT")"
+    else
+        SSH_KEY="$SSH_KEY_INPUT"
+    fi
+fi
+# Escape characters that are special on the replacement side of sed s|...|...|.
+SSH_KEY_ESC="$(printf '%s' "$SSH_KEY" | sed -e 's/[\\&|]/\\&/g')"
+
 cp "$TEMPLATE" "$OUTPUT"
 
 sed -i \
@@ -50,6 +67,7 @@ sed -i \
   -e "s|__IP_ADDR__|${IP_ADDR}|g" \
   -e "s|__GATEWAY__|${GATEWAY}|g" \
   -e "s|__DNS__|${DNS}|g" \
+  -e "s|__ANSIBLE_SSH_KEY__|${SSH_KEY_ESC}|g" \
   "$OUTPUT"
 
 echo "Generated: $OUTPUT"
